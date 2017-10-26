@@ -5,6 +5,7 @@ import(
 	"golang.org/x/net/context" 
 	"database/sql"
         "fmt"
+	"time"
 	"reflect"
 	 _ "encoding/json"
        _ "github.com/mattn/go-sqlite3"
@@ -12,7 +13,7 @@ import(
 )
 
 const (  
-    indexName    = "felicityopsm-2017-10-24"
+    indexName    = "opsmfelicity-dev-2017-10-26"
     docType      = "vulnRecord"
     appName      = "cVECPE"
     indexMapping = `{
@@ -23,7 +24,8 @@ const (
                                     "CVESummary" : { "type" : "string", "index" : "analyzed" },
                                     "CPEName" : { "type" : "string" },
 				    "CPEVendor" : { "type" : "string"},
-				    "CPEProduct" : { "type" : "string"}
+				    "CPEProduct" : { "type" : "string"},
+				    "timestamp" : {"type" : "string", "index": "analyzed"}
                                 }
                             }
                         }
@@ -38,6 +40,7 @@ type CVECPEData struct{
 	Cpename	string	`json:"CPEName,omitempty"`
 	Cpevendor	string	`json:"CPEVendor,omitempty"`
 	Cpeproduct	string	`json:"CPEProduct,omitempty"`
+	Timestamp	string	`json:"timestamp,omitempty"`
 }
 
 
@@ -67,6 +70,7 @@ rows, err := db.Query("select nvd.cve_id as cveid, nvd.summary as cvesummary, cp
                 fmt.Println(err.Error())
             } else {
                 var tempObj     CVECPEData
+		tempObj.Timestamp = time.Now().Format(time.RFC3339)
                 tempObj.Cveid = cveid
                 tempObj.Cvesummary = cvesummary
                 tempObj.Cpename = cpename
@@ -87,7 +91,7 @@ func main(){
 	DataArr := PopulateDataArray()
 	// Call a function that will dump it into elasticsearch
 
-	client, err := elastic.NewClient()
+	client, err := elastic.NewClient(elastic.SetURL("http://192.168.2.254:60920"),elastic.SetSniff(false))
 	if err != nil {
 		fmt.Println(err.Error())
 	}
@@ -109,7 +113,7 @@ func main(){
 
 	for idx,valx := range DataArr {
 		fmt.Println(reflect.TypeOf(valx))
-		_, err := client.Index().Index(indexName).Type(docType).Id(strconv.Itoa(idx)).BodyJson(valx).Do(context.Background())
+		_, err := client.Index().Index(indexName).Type(docType).Id(strconv.Itoa(idx)+"_datafrom2016").BodyJson(valx).Do(context.Background())
 		if err != nil {
 			fmt.Println(idx)
 			fmt.Println(err.Error())
